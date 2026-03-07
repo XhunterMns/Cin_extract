@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>home</title>
+</head>
+<body>
+    <h1>Upload Cin</h1>
+    <form method="post" enctype="multipart/form-data">
+        {{ form.hidden_tag() }}
+        {{ form.file() }}
+        {{ form.submit() }}
+    </form>
+ <h1>Available Files</h1>
+    
+    {% if files %}
+        <ul>
+        {% for file in files %}
+            <li>
+                <a href="{{ url_for('static', filename='files/' + file) }}" target="_blank">
+                    {{ file }}
+                </a>
+            </li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No files found in the folder.</p>
+    {% endif %}
+</body>
+</html>
