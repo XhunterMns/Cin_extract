@@ -1,31 +1,102 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>home</title>
+  <meta charset="utf-8" />
+  <title>Home</title>
+  <style>
+    .thumb { width:160px; height:auto; margin:6px; cursor:pointer; border:1px solid #ccc; }
+    .file-row { display:inline-block; text-align:center; margin:8px; }
+    #ocr-result { width:100%; height:200px; }
+    #meta { font-size: 0.9em; color: #333; margin-top: 6px; }
+  </style>
 </head>
 <body>
-    <h1>Upload Cin</h1>
-    <form method="post" enctype="multipart/form-data">
-        {{ form.hidden_tag() }}
-        {{ form.file() }}
-        {{ form.submit() }}
-    </form>
- <h1>Available Files</h1>
-    
+  <h1>Scan your CIN</h1>
+
+  <div style="border: 2px solid #000; display: inline-block;">
+      <img src="{{ url_for('video_feed') }}" width="640" height="480" />
+  </div>
+
+  <form action="{{ url_for('capture') }}" method="POST" style="margin-top: 10px;">
+      <button type="submit" style="padding: 10px 20px; background-color: green; color: white;">
+          CAPTURE & SCAN
+      </button>
+  </form>
+
+  <h2>Available Files (click image to OCR)</h2>
+
+  <div id="files-list">
     {% if files %}
-        <ul>
-        {% for file in files %}
-            <li>
-                <a href="{{ url_for('static', filename='files/' + file) }}" target="_blank">
-                    {{ file }}
-                </a>
-            </li>
-        {% endfor %}
-        </ul>
+      {% for f in files %}
+        <div class="file-row">
+          <img src="{{ url_for('static', filename='files/' + f) }}"
+               class="thumb"
+               data-filename="{{ f }}"
+               alt="{{ f }}" />
+          <div>{{ f }}</div>
+        </div>
+      {% endfor %}
     {% else %}
-        <p>No files found in the folder.</p>
+      <p>No files found.</p>
     {% endif %}
+  </div>
+
+  <h2>OCR Result</h2>
+  <div style="display:flex; gap:12px; align-items:flex-start;">
+    <textarea id="ocr-result" readonly placeholder="Click an image to extract text..." style="flex:1;"></textarea>
+    <div style="width:320px;">
+      <div>Preprocessed image:</div>
+      <img id="prepro" src="" alt="preprocessed" style="width:100%; border:1px solid #ddd; display:block;" />
+      <div id="meta"></div>
+    </div>
+  </div>
+
+  <script>
+    async function extractForFileBlob(imgEl) {
+      const resArea = document.getElementById('ocr-result');
+      const metaDiv = document.getElementById('meta');
+      const preproImg = document.getElementById('prepro');
+      resArea.value = 'Processing...';
+      metaDiv.textContent = '';
+      preproImg.src = '';
+
+      try {
+        const r = await fetch(imgEl.src);
+        const blob = await r.blob();
+        const fd = new FormData();
+        const name = imgEl.dataset.filename || 'upload.jpg';
+        fd.append('file', blob, name);
+        // request server to return the preprocessed image
+        fd.append('debug', '1');
+
+        const resp = await fetch('{{ url_for("extract") }}', {
+          method: 'POST',
+          body: fd
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          resArea.value = data.error || ('HTTP ' + resp.status);
+          return;
+        }
+        resArea.value = data.text || '';
+        const fields = data.fields || {};
+        const meta = data.meta || {};
+        metaDiv.textContent = 'Detected fields: ' + JSON.stringify(fields) + ' — OCR meta: ' + JSON.stringify(meta);
+
+        if (data.preprocessed_image) {
+          preproImg.src = data.preprocessed_image;
+        }
+      } catch (err) {
+        resArea.value = 'Request failed: ' + err;
+      }
+    }
+
+    document.addEventListener('click', function (e) {
+      const t = e.target;
+      if (t && t.classList && t.classList.contains('thumb')) {
+        extractForFileBlob(t);
+      }
+    });
+  </script>
 </body>
 </html>
